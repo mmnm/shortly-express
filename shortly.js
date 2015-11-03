@@ -2,6 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
+var bcrypt = require('bcrypt');
 
 
 var db = require('./app/config');
@@ -10,6 +11,7 @@ var User = require('./app/models/user');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
+var session = require('express-session');
 
 var app = express();
 
@@ -21,27 +23,135 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
+app.use(session({
+  secret: 'a big secret',
+  name: 'cookie',
+  resave: true,
+  saveUninitialized: true
+}));
 
+var x = 1;
 
-app.get('/', 
-function(req, res) {
+var isAuthenticated = function(req, res, next) {
+  next();
+
+  //if(x === 1) {
+  //  console.log("Are we here/");
+  //  x = -x;
+  //  return next();
+  //}
+  //res.redirect('/login');
+};
+
+var setSession = function (request) {
+  request.session.regenerate(function(){
+    request.session.user = request.body.username;
+  });
+};
+
+app.get('/', isAuthenticated, function(req, res) {
+  // is user authenticated
+    // if not redirect to /login
+    // if so, render index
   res.render('index');
 });
 
-app.get('/create', 
-function(req, res) {
+app.get('/login', function(req, res) {
+
+  var username = req.body.username;
+  var password = req.body.password;
+
+  new User({username: username, password: password}).fetch().then(function (found) {
+    if (found) {
+      res.redirect('/index');
+    } else {
+      Users.create({
+        username: username,
+        password: password
+      })
+        .then(function (user) {
+          setSession(req);
+          res.redirect('/');
+        })
+        .catch(function (err) {
+          console.log(err);
+        });
+    }
+
+    res.render('login');
+  });
+
+});
+
+app.post('/login', function (req, res) {
+  new User({ username: username, password: password }).fetch().then(function (found) {
+    if (found) {
+      setSession(req);
+      res.redirect('/index');
+    } else {
+      res.redirect('/login')
+    }
+
+    res.render('login');
+  });
+});
+
+
+app.get('/signup',
+  function(req, res) {
+    res.render('signup');
+  });
+
+
+app.post('/signup', function(req, res) {
+
+  var username = req.body.username;
+  var password = req.body.password;
+
+  new User({ username: username}).fetch().then(function(found) {
+    if (found) {
+      console.log("Found");
+      res.redirect('http://google.com');
+    } else {
+      Users.create({
+        username: username,
+        password: password
+      })
+      .then(function(user) {
+        setSession(req);
+        res.redirect('/');
+      })
+      .catch(function(err){
+        console.log(err);
+      });
+    }
+  });
+});
+
+
+
+// handle post to /signup
+  // collect username and password
+    // make sure user doesn't exist
+      // make user,db entry
+        // forward to /index
+        // start session stuff
+    // ??? if user doesn't exist return error
+
+app.get('/create', isAuthenticated, function(req, res) {
+  // is user authenticated
+    // if not redirect to /login
+    // if so, render index
   res.render('index');
 });
 
-app.get('/links', 
-function(req, res) {
+app.get('/links', isAuthenticated, function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', 
-function(req, res) {
+app.post('/links', isAuthenticated, function(req, res) {
   var uri = req.body.url;
 
   if (!util.isValidUrl(uri)) {
