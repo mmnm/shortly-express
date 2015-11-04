@@ -1,4 +1,13 @@
 var express = require('express');
+var session = require('express-session');
+var util = require('util')
+var GitHubStrategy = require('passport-github');
+
+var GITHUB_CLIENT_ID = "b38b19e63c60decf1159"
+var GITHUB_CLIENT_SECRET = "2d165b426a1d3ae20271e34bbd3ad0421131f3f1";
+
+
+
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
@@ -9,10 +18,6 @@ var User = require('./app/models/user');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
-var session = require('express-session');
-
-
-
 
 var app = express();
 
@@ -31,6 +36,92 @@ app.use(session({
   saveUninitialized: true
 }));
 
+var passport = require('passport');
+app.use(passport.initialize());
+app.use(passport.session());
+
+
+
+
+// Passport session setup.
+//   To support persistent login sessions, Passport needs to be able to
+//   serialize users into and deserialize users out of the session.  Typically,
+//   this will be as simple as storing the user ID when serializing, and finding
+//   the user by ID when deserializing.  However, since this example does not
+//   have a database of user records, the complete GitHub profile is serialized
+//   and deserialized.
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
+
+passport.deserializeUser(function(obj, done) {
+  done(null, obj);
+});
+
+
+// Use the GitHubStrategy within Passport.
+//   Strategies in Passport require a `verify` function, which accept
+//   credentials (in this case, an accessToken, refreshToken, and GitHub
+//   profile), and invoke a callback with a user object.
+passport.use(new GitHubStrategy({
+    clientID: GITHUB_CLIENT_ID,
+    clientSecret: GITHUB_CLIENT_SECRET,
+    callbackURL: "http://127.0.0.1:4568/auth/github/callback"
+  },
+  function(accessToken, refreshToken, profile, done) {
+    // asynchronous verification, for effect...
+    process.nextTick(function () {
+      
+      // To keep the example simple, the user's GitHub profile is returned to
+      // represent the logged-in user.  In a typical application, you would want
+      // to associate the GitHub account with a user record in your database,
+      // and return that user instead.
+      return done(null, profile);
+    });
+  }
+));
+
+
+
+
+app.get('/auth/github',
+  passport.authenticate('github'),
+  function(req, res){
+    // The request will be redirected to GitHub for authentication, so this
+    // function will not be called.
+  });
+
+// GET /auth/github/callback
+//   Use passport.authenticate() as route middleware to authenticate the
+//   request.  If authentication fails, the user will be redirected back to the
+//   login page.  Otherwise, the primary route function function will be called,
+//   which, in this example, will redirect the user to the home page.
+app.get('/auth/github/callback', passport.authenticate('github', { failureRedirect: '/login' }),
+  function(req, res) {
+    console.log("Github are we here");
+    console.log(req.body.username);
+
+    new User({ username: req.body.username }).fetch()
+    .then(function(found) {
+      if (found) {
+        // send back error
+        util.setSession(req, res);
+
+      } else {
+        Users.create({
+          username: req.body.username
+        })
+        .then(function() {
+          util.setSession(req, res);
+        });
+      }
+    })
+    .catch(function(err){
+      console.log(err);
+    });
+  });
+
+
 
 app.get('/', util.isAuthenticated, function(req, res) {
   res.render('index');
@@ -41,7 +132,7 @@ app.get('/login', function(req, res) {
 });
 
 app.post('/login', function (req, res) {
-  new User({ username:req.body.username }).fetch()
+  new User({ username: req.body.username }).fetch()
     .then(function (user) {
     	if (!user) {
         // todo handle better
