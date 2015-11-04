@@ -11,6 +11,9 @@ var Link = require('./app/models/link');
 var Click = require('./app/models/click');
 var session = require('express-session');
 
+
+
+
 var app = express();
 
 app.set('views', __dirname + '/views');
@@ -22,7 +25,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 app.use(session({
-  secret: 'a big secret',
+  secret: 'cooksofcooks',
   name: 'cookie',
   resave: true,
   saveUninitialized: true
@@ -38,7 +41,7 @@ app.get('/login', function(req, res) {
 });
 
 app.post('/login', function (req, res) {
-  new User({ username:req.body.username}).fetch()
+  new User({ username:req.body.username }).fetch()
     .then(function (user) {
     	if (!user) {
         // todo handle better
@@ -48,8 +51,7 @@ app.post('/login', function (req, res) {
         util.checkPassword(req.body.password, dbPassword)
           .then(function (match) {
           	if (match) {
-              util.setSession(req);
-              res.redirect('/index');
+              util.setSession(req, res);
             } else {
               res.redirect('/login')
             }
@@ -57,7 +59,6 @@ app.post('/login', function (req, res) {
       }
     });
 });
-
 
 app.get('/signup',
   function(req, res) {
@@ -69,6 +70,7 @@ app.post('/signup', function(req, res) {
   new User({ username: req.body.username }).fetch()
     .then(function(found) {
       if (found) {
+        // send back error
         res.redirect('http://google.com');
       } else {
         util.generateSecurePassword(req.body.password)
@@ -79,8 +81,7 @@ app.post('/signup', function(req, res) {
             })
           })
           .then(function() {
-            util.setSession(req);
-            res.redirect('/');
+            util.setSession(req, res);
           });
       }
     })
@@ -133,6 +134,14 @@ app.post('/links', util.isAuthenticated, function(req, res) {
   });
 });
 
+
+app.get('/logout', function(req, res) {
+  req.session.active = false;
+  req.session.destroy(function(err){
+    res.redirect('/login');
+  });
+});
+
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
@@ -147,8 +156,7 @@ app.post('/links', util.isAuthenticated, function(req, res) {
 
 app.get('/*', function(req, res) {
   new Link({ code: req.params[0] }).fetch().then(function(link) {
-    if (!link) {
-      res.redirect('/');
+    if (!link) {res.redirect('/');
     } else {
       var click = new Click({
         link_id: link.get('id')
