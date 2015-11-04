@@ -3,6 +3,7 @@ var session = require('express-session');
 var util = require('util')
 var GitHubStrategy = require('passport-github');
 
+//This github id will only work now for mmnm
 var GITHUB_CLIENT_ID = "b38b19e63c60decf1159"
 var GITHUB_CLIENT_SECRET = "2d165b426a1d3ae20271e34bbd3ad0421131f3f1";
 
@@ -64,14 +65,14 @@ passport.deserializeUser(function(obj, done) {
 //   credentials (in this case, an accessToken, refreshToken, and GitHub
 //   profile), and invoke a callback with a user object.
 passport.use(new GitHubStrategy({
-    clientID: GITHUB_CLIENT_ID,
-    clientSecret: GITHUB_CLIENT_SECRET,
-    callbackURL: "http://127.0.0.1:4568/auth/github/callback"
-  },
-  function(accessToken, refreshToken, profile, done) {
+  clientID: GITHUB_CLIENT_ID,
+  clientSecret: GITHUB_CLIENT_SECRET,
+  callbackURL: "http://127.0.0.1:4568/auth/github/callback"
+},
+function(accessToken, refreshToken, profile, done) {
     // asynchronous verification, for effect...
     process.nextTick(function () {
-      
+
       // To keep the example simple, the user's GitHub profile is returned to
       // represent the logged-in user.  In a typical application, you would want
       // to associate the GitHub account with a user record in your database,
@@ -79,7 +80,7 @@ passport.use(new GitHubStrategy({
       return done(null, profile);
     });
   }
-));
+  ));
 
 
 
@@ -133,20 +134,20 @@ app.get('/login', function(req, res) {
 
 app.post('/login', function (req, res) {
   new User({ username: req.body.username }).fetch()
-    .then(function (user) {
-    	if (!user) {
+  .then(function (user) {
+   if (!user) {
         // todo handle better
         res.redirect('/login');
       } else {
         var dbPassword = user.attributes.password;
         util.checkPassword(req.body.password, dbPassword)
-          .then(function (match) {
-          	if (match) {
-              util.setSession(req, res);
-            } else {
-              res.redirect('/login')
-            }
-          })
+        .then(function (match) {
+         if (match) {
+          util.setSession(req, res);
+        } else {
+          res.redirect('/login')
+        }
+      })
       }
     });
 });
@@ -159,34 +160,34 @@ app.get('/signup',
 
 app.post('/signup', function(req, res) {
   new User({ username: req.body.username }).fetch()
-    .then(function(found) {
-      if (found) {
+  .then(function(found) {
+    if (found) {
         // send back error
         res.redirect('http://google.com');
       } else {
         util.generateSecurePassword(req.body.password)
-          .then(function (hashedPassword) {
-            return Users.create({
-              username: req.body.username,
-              password: hashedPassword
-            })
+        .then(function (hashedPassword) {
+          return Users.create({
+            username: req.body.username,
+            password: hashedPassword
           })
-          .then(function() {
-            util.setSession(req, res);
-          });
+        })
+        .then(function() {
+          util.setSession(req, res);
+        });
       }
     })
-    .catch(function(err){
-      console.log(err);
-    });
+  .catch(function(err){
+    console.log(err);
+  });
 });
 
 app.get('/create', util.isAuthenticated, function(req, res) {
   // is user authenticated
     // if not redirect to /login
     // if so, render index
-  res.render('index');
-});
+    res.render('index');
+  });
 
 app.get('/links', util.isAuthenticated, function(req, res) {
   Links.reset().fetch().then(function(links) {
@@ -248,19 +249,19 @@ app.get('/logout', function(req, res) {
 app.get('/*', function(req, res) {
   new Link({ code: req.params[0] }).fetch().then(function(link) {
     if (!link) {res.redirect('/');
-    } else {
-      var click = new Click({
-        link_id: link.get('id')
-      });
+  } else {
+    var click = new Click({
+      link_id: link.get('id')
+    });
 
-      click.save().then(function() {
-        link.set('visits', link.get('visits')+1);
-        link.save().then(function() {
-          return res.redirect(link.get('url'));
-        });
+    click.save().then(function() {
+      link.set('visits', link.get('visits')+1);
+      link.save().then(function() {
+        return res.redirect(link.get('url'));
       });
-    }
-  });
+    });
+  }
+});
 });
 
 console.log('Shortly is listening on 4568');
